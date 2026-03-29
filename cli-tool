@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+if [ ! -f "$ROOT_DIR/dist/index.js" ]; then
+  echo "dist/index.js not found. Building the CLI..." >&2
+  (cd "$ROOT_DIR" && npm run build >/dev/null)
+fi
+
+exec node "$ROOT_DIR/dist/index.js" "$@"

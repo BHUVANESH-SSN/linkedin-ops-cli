@@ -1,49 +1,111 @@
 # linkedin-automation-cli
 
-A small CLI project that automates simple LinkedIn actions against a list of profile URLs from a CSV file. It uses Browserbase for the cloud browser session and Playwright for the actual browser automation, while keeping the flow sequential and easy to read.
+CLI automation for LinkedIn profile workflows using Browserbase + Playwright.
+
+Public repository: https://github.com/BHUVANESH-SSN/linkedin-ops-cli
+
+## What This Project Covers
+
+This project satisfies the Browserbase automation task requirements:
+
+- Accepts a CSV file of LinkedIn profile URLs
+- Accepts one or more actions through the CLI, such as `view,connect,like`
+- Processes profiles sequentially
+- Uses human-like pauses between actions and profiles
+- Uses Browserbase cloud sessions for execution
+- Persists and reuses a Browserbase context so LinkedIn login does not start from scratch every run
+- Keeps actions modular so new actions can be added easily later
+- Logs each step with clear terminal output
+
+## Tech Stack
+
+- Node.js
+- TypeScript
+- Commander.js
+- Browserbase SDK
+- Playwright Core
 
 ## Prerequisites
 
-- Node.js 18 or newer
+- Node.js 18+
 - npm
-- A Browserbase account
+- A Browserbase account and project
 - A LinkedIn account
 
 ## Installation
 
 ```bash
-git clone <your-repo-url>
-cd linkedin-automation-cli
+git clone https://github.com/BHUVANESH-SSN/linkedin-ops-cli.git
+cd linkedin-ops-cli
 npm install
 ```
 
-## Configuration
+## Install The CLI Command
 
-Create a `.env` file from the sample:
+The easiest no-sudo option is the repo-local launcher:
+
+```bash
+./cli-tool run --file leads.csv --actions view,connect,like
+```
+
+It automatically builds `dist/index.js` the first time if needed.
+
+You can also run the same CLI through npm without global install:
+
+```bash
+npm run cli-tool -- run --file leads.csv --actions view,connect,like
+```
+
+If you want a global `cli-tool` command and your system allows global npm links, link the package once:
+
+```bash
+npm run link:cli
+```
+
+After that, you can run:
+
+```bash
+cli-tool run --file leads.csv --actions view,connect,like
+```
+
+If you only want a one-off local run during development, this still works too:
+
+```bash
+npm run dev -- run --file leads.csv --actions view,connect,like
+```
+
+If `npm run link:cli` fails with `EACCES`, use `./cli-tool ...` instead of the global link.
+
+## Environment Setup
+
+Create a local `.env` file:
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in these values:
+Fill in:
 
 ```env
 BROWSERBASE_API_KEY=your_browserbase_api_key
 BROWSERBASE_PROJECT_ID=your_browserbase_project_id
 LINKEDIN_EMAIL=your_linkedin_email
 LINKEDIN_PASSWORD=your_linkedin_password
+BROWSERBASE_CONTEXT_ID=
 ```
 
-Where to get them:
+Notes:
 
-- `BROWSERBASE_API_KEY`: from your Browserbase dashboard API keys page
-- `BROWSERBASE_PROJECT_ID`: from the Browserbase project you want to run the browser in
-- `LINKEDIN_EMAIL`: the email for your LinkedIn login
-- `LINKEDIN_PASSWORD`: the password for your LinkedIn login
+- `BROWSERBASE_CONTEXT_ID` is optional
+- If you leave it blank, the CLI will create a Browserbase context on the first run and save it locally in `browserbase-context.json`
+- On later runs, that saved context is reused automatically
+- If you set `BROWSERBASE_CONTEXT_ID` in `.env`, it overrides the local saved context file
 
 ## CSV Format
 
-Create a CSV file such as `leads.csv` with a `linkedin_url` column:
+The CLI accepts `linkedin_url`, `profile_url`, or `url` columns.
+
+Example:
 
 ```csv
 linkedin_url
@@ -51,55 +113,113 @@ https://www.linkedin.com/in/satyanadella/
 https://www.linkedin.com/in/sundarpichai/
 ```
 
-The CSV reader also accepts a `url` column, but `linkedin_url` is the intended format.
-
 ## Usage
 
-Run one action:
+Run a single action:
 
 ```bash
-npm run dev -- run --file leads.csv --actions view
+./cli-tool run --file leads.csv --actions view
 ```
 
-Run multiple actions in sequence:
+Run two actions:
 
 ```bash
-npm run dev -- run --file leads.csv --actions view,connect
+./cli-tool run --file leads.csv --actions view,connect
 ```
+
+Run the full workflow:
 
 ```bash
-npm run dev -- run --file leads.csv --actions connect,like
+./cli-tool run --file leads.csv --actions view,connect,like
 ```
+
+Build the project:
 
 ```bash
-npm run dev -- run --file leads.csv --actions view,connect,like
+npm run build
 ```
 
-Use a custom delay between actions:
+Run the built CLI without linking:
 
 ```bash
-npm run dev -- run --file leads.csv --actions view,connect --delay 3500
+npm start -- run --file leads.csv --actions view,connect,like
 ```
 
-Preview the workflow without launching browser automation:
+## Workflow Behavior
 
-```bash
-npm run dev -- run --file leads.csv --actions view,connect,like --dry-run
+For each profile URL, the selected actions are executed in order.
+
+### `view`
+
+- Opens the LinkedIn profile
+- Verifies that the loaded profile matches the requested slug
+
+### `connect`
+
+- Loads the target profile
+- Tries the direct Browserbase invite flow first with `https://www.linkedin.com/preload/custom-invite/?vanityName=<slug>`
+- Clicks `Send without a note` when available
+- Falls back to profile page `Connect` or `More -> Connect` if needed
+- Handles confirmation states such as modals, invite pages, pending states, and toasts
+
+### `like`
+
+- Opens the profile's recent activity page
+- Finds the first visible recent post
+- Locates the Like button safely
+- Avoids duplicate likes when the post is already liked
+
+## Human-Like Delays
+
+This project intentionally adds small randomized waits so the workflow behaves less like a tight automation loop.
+
+The delay helper lives in `src/utils.ts`:
+
+```ts
+humanDelay(minMs, maxMs)
 ```
 
-Reset the saved Browserbase session:
+It picks a random value between `minMs` and `maxMs` and waits for that amount of time before continuing.
 
-```bash
-npm run dev -- --reset-session
-```
+Where delays are used:
 
-## How Session Management Works
+- `src/index.ts`
+  - waits `3000-6000ms` between profiles
+- `src/browser.ts`
+  - adds pauses during login checks, form filling, post-login waiting, and browser shutdown
+- `src/actions/view.ts`
+  - waits after opening a profile so the page can settle naturally
+- `src/actions/connect.ts`
+  - waits during invite-page loads, connect modal handling, send confirmation checks, retry loops, and profile-return verification
+- `src/actions/like.ts`
+  - waits after opening recent activity, after clicking Like, and while polling for confirmation
 
-The project keeps Browserbase context state in `browserbase-context.json` and cached LinkedIn cookies in `linkedin-cookies.json`.
+Examples of current delay ranges:
 
-- On the first run, it creates or reuses a persistent Browserbase context and stores its ID locally.
-- On later runs, it reconnects with that saved context so you do not have to recreate the authenticated browser state from scratch.
-- If the saved state becomes stale or LinkedIn login state is no longer valid, run with `--reset-session` to delete the local state files and start fresh.
+- `250-450ms` for short polling loops
+- `700-1400ms` for action follow-up checks
+- `1500-2500ms` after page loads
+- `3000-6000ms` between different profiles
+
+These delays are not meant to fully simulate a human user, but they do help the CLI avoid firing actions back-to-back with zero spacing.
+
+## Session Management
+
+Browserbase session reuse is handled through persistent contexts.
+
+- First run:
+  - A Browserbase context is created if one is not already configured
+  - The context ID is saved to `browserbase-context.json`
+  - LinkedIn login happens only if the saved context is not already authenticated
+
+- Later runs:
+  - The CLI reuses the same Browserbase context
+  - LinkedIn should remain authenticated unless the session expires
+
+To reset session reuse:
+
+- delete `browserbase-context.json`
+- remove `BROWSERBASE_CONTEXT_ID` from `.env` if you set it manually
 
 ## Project Structure
 
@@ -110,54 +230,37 @@ src/
 │   ├── index.ts
 │   ├── like.ts
 │   └── view.ts
-├── session/
-│   ├── auth.ts
-│   └── browserbase.ts
-├── utils/
-│   ├── csv.ts
-│   ├── delay.ts
-│   └── logger.ts
-├── cli.ts
-├── runner.ts
-└── types.ts
+├── browser.ts
+├── config.ts
+├── csv.ts
+├── index.ts
+├── logger.ts
+└── utils.ts
 ```
 
-## Adding New Actions
+## Extending The CLI
 
-Each action is a function with the same shape:
+Actions are registered centrally in `src/actions/index.ts`, so adding a new action like `message` is straightforward:
 
-```ts
-type ActionFn = (page: Page, url: string) => Promise<ActionResult>;
-```
+1. Create a new action file in `src/actions/`
+2. Export the action handler with the same `(page, profileUrl) => Promise<void>` shape
+3. Register it in `ACTION_REGISTRY`
 
-The `ACTION_MAP` in [src/actions/index.ts](/mnt/acer/PROJECTS/linkedin-automation-cli/src/actions/index.ts) decides which string from the CLI maps to which action function.
+## Resilience Notes
 
-If you wanted to add a new `message` action:
+The current implementation already handles several interview-task edge cases:
 
-1. Create `src/actions/message.ts`
-2. Export `runMessage(page, url)`
-3. Add `'message'` to `ActionName` in [src/types.ts](/mnt/acer/PROJECTS/linkedin-automation-cli/src/types.ts)
-4. Register it inside `ACTION_MAP`
-5. Update the CLI validation so `--actions message` is allowed
+- hidden `Connect` actions inside `More`
+- direct invite links rendered as `custom-invite` URLs
+- confirmation modal vs full invite page flows
+- already-connected or pending states
+- profiles with no recent posts
+- login challenges that require manual completion in Browserbase live view
 
-## Troubleshooting
+## Verification
 
-Session expired:
-- Run `npm run dev -- --reset-session` and try again.
+Current local verification:
 
-Connect button not found:
-- Some profiles hide the button inside the `More` menu, and some profiles do not allow connections at all.
+- `npm run build`
 
-Login blocked:
-- LinkedIn may challenge the login with extra verification. If that happens, reset the session and try again with a clean login.
-
-## How The Code Flows
-
-If you want the simplest mental model, this is the order of execution:
-
-1. `src/cli.ts` reads your command line flags
-2. `src/runner.ts` reads the CSV and connects to Browserbase
-3. `src/session/auth.ts` logs into LinkedIn once
-4. The runner loops through each profile URL
-5. For each profile, the selected actions run one by one with human-like delays
-6. A summary prints at the end
+There is no automated integration test suite in this repo because the real workflow requires authenticated Browserbase and LinkedIn sessions.

@@ -30,6 +30,8 @@
  *   → Output: Closes session safely
  */
 
+import { readFile, writeFile } from "fs/promises";
+import { resolve } from "path";
 import Browserbase from "@browserbasehq/sdk";
 import { chromium, type Browser, type Page } from "playwright-core";
 import type { Config } from "./config.js";
@@ -40,6 +42,10 @@ import { humanDelay } from "./utils.js";
 // SINGLETON CLIENT
 // ============================================
 let bbClient: Browserbase | null = null;
+const CONTEXT_STATE_PATH = resolve(
+  process.cwd(),
+  "browserbase-context.json"
+);
 
 function getClient(config: Config): Browserbase {
   if (!bbClient) {
@@ -48,6 +54,39 @@ function getClient(config: Config): Browserbase {
     });
   }
   return bbClient;
+}
+
+async function readSavedContextId(): Promise<string | null> {
+  try {
+    const raw = await readFile(CONTEXT_STATE_PATH, "utf8");
+    const parsed = JSON.parse(raw) as {
+      contextId?: string;
+    };
+    const contextId = parsed.contextId?.trim();
+
+    return contextId || null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistContextId(
+  contextId: string
+): Promise<void> {
+  try {
+    await writeFile(
+      CONTEXT_STATE_PATH,
+      JSON.stringify({ contextId }, null, 2),
+      "utf8"
+    );
+    logger.info(
+      `Saved reusable Browserbase context to ${CONTEXT_STATE_PATH}`
+    );
+  } catch {
+    logger.warn(
+      "Created a Browserbase context, but could not save it locally"
+    );
+  }
 }
 
 // ============================================
@@ -61,7 +100,17 @@ export async function getOrCreateContext(
     logger.info(
       `Reusing context: ${config.browserbaseContextId}`
     );
+    await persistContextId(config.browserbaseContextId);
     return config.browserbaseContextId;
+  }
+
+  const savedContextId = await readSavedContextId();
+
+  if (savedContextId) {
+    logger.info(
+      `Reusing saved context: ${savedContextId}`
+    );
+    return savedContextId;
   }
 
   // Create new context
@@ -72,8 +121,9 @@ export async function getOrCreateContext(
   });
 
   logger.info(`Created context: ${context.id}`);
+  await persistContextId(context.id);
   logger.info(
-    `Save in .env → BROWSERBASE_CONTEXT_ID=${context.id}`
+    `Optional override in .env → BROWSERBASE_CONTEXT_ID=${context.id}`
   );
 
   return context.id;

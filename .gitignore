@@ -3,8 +3,8 @@ dist/
 .env
 session.json
 *.js.map
-*.json
+
 *.log
-linked-in-automation.md
+
 .sixth
 .codex
