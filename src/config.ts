@@ -40,8 +40,8 @@ function requireEnv(key: string): string {
   const value = process.env[key];
 
   if (!value) {
-    console.error(`❌ Missing environment variable: ${key}`);
-    console.error(`👉 Copy .env.example → .env and fill values`);
+    console.error(`Missing environment variable: ${key}`);
+    console.error(` Copy .env.example → .env and fill values`);
     process.exit(1);
   }
 
