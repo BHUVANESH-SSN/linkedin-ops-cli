@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+session.json
+*.js.map
+*.json
+linked-in-automation.md
