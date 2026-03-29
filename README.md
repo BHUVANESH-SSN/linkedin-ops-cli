@@ -75,6 +75,18 @@ npm run dev -- run --file leads.csv --actions connect,like
 npm run dev -- run --file leads.csv --actions view,connect,like
 ```
 
+Use a custom delay between actions:
+
+```bash
+npm run dev -- run --file leads.csv --actions view,connect --delay 3500
+```
+
+Preview the workflow without launching browser automation:
+
+```bash
+npm run dev -- run --file leads.csv --actions view,connect,like --dry-run
+```
+
 Reset the saved Browserbase session:
 
 ```bash
@@ -83,11 +95,11 @@ npm run dev -- --reset-session
 
 ## How Session Management Works
 
-The project stores the Browserbase session ID in `session.json`.
+The project keeps Browserbase context state in `browserbase-context.json` and cached LinkedIn cookies in `linkedin-cookies.json`.
 
-- On the first run, it creates a new Browserbase session and saves the session ID.
-- On later runs, it reuses that same session so you do not have to create a brand-new browser every time.
-- If the session becomes stale or LinkedIn login state is no longer valid, run with `--reset-session` to delete `session.json` and start fresh.
+- On the first run, it creates or reuses a persistent Browserbase context and stores its ID locally.
+- On later runs, it reconnects with that saved context so you do not have to recreate the authenticated browser state from scratch.
+- If the saved state becomes stale or LinkedIn login state is no longer valid, run with `--reset-session` to delete the local state files and start fresh.
 
 ## Project Structure
 
