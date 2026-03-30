@@ -17,6 +17,9 @@ This project satisfies the Browserbase automation task requirements:
 - Keeps actions modular so new actions can be added easily later
 - Logs each step with clear terminal output
 
+  <img width="1233" height="627" alt="image" src="https://github.com/user-attachments/assets/a387944d-23a4-40f5-84f8-45dd44a71d2f" />
+
+
 ## Tech Stack
 
 - Node.js
