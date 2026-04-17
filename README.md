@@ -4,6 +4,7 @@ CLI automation for LinkedIn profile workflows using Browserbase + Playwright.
 
 Public repository: https://github.com/BHUVANESH-SSN/linkedin-ops-cli
 
+Demo Video : https://vimeo.com/1184040433?share=copy&fl=sv&fe=ci
 ## What This Project Covers
 
 This project satisfies the Browserbase automation task requirements:
